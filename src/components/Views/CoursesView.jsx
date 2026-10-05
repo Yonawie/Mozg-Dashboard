@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Copy, BookOpen, Users, ChevronDown, ChevronUp, Trash2, Edit2, Check, X, FileText } from 'lucide-react';
+import { Plus, Copy, BookOpen, Users, ChevronDown, ChevronUp, Trash2, Edit2, Check, X, FileText, Award } from 'lucide-react';
 import { db } from '../../db';
 
 export default function CoursesView() {
@@ -261,6 +261,21 @@ function GroupEditor({ group, isExpanded, onToggle, onDelete }) {
     setProjects(newProjects);
   };
 
+  const handleSendToShowcase = async (e, p) => {
+    e.stopPropagation();
+    const studentsStr = p.students ? p.students.replace(/\n/g, ', ') : 'Неизвестно';
+    await db.showcase.add({
+      title: p.name || 'Проект без названия',
+      studentName: studentsStr,
+      courseId: group.courseId,
+      type: 'Другое',
+      description: p.notes || 'Добавлено из группы',
+      rating: 5,
+      badges: []
+    });
+    alert(`Проект "${p.name}" отправлен на витрину! 🏆`);
+  };
+
   const handleDeleteProject = (e, id) => {
     e.stopPropagation();
     if (window.confirm('Удалить этот проект?')) {
@@ -306,8 +321,9 @@ function GroupEditor({ group, isExpanded, onToggle, onDelete }) {
                 {!p.isEditing ? (
                   <div>
                     <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px' }}>
-                      <button onClick={(e) => handleToggleEdit(e, p.id)} className="btn" style={{ padding: '4px' }}><Edit2 size={14} /></button>
-                      <button onClick={(e) => handleDeleteProject(e, p.id)} className="btn" style={{ padding: '4px', color: 'var(--accent-red)' }}><Trash2 size={14} /></button>
+                      <button onClick={(e) => handleSendToShowcase(e, p)} className="btn" style={{ padding: '4px', color: '#ffd700' }} title="На витрину"><Award size={14} /></button>
+                      <button onClick={(e) => handleToggleEdit(e, p.id)} className="btn" style={{ padding: '4px' }} title="Изменить"><Edit2 size={14} /></button>
+                      <button onClick={(e) => handleDeleteProject(e, p.id)} className="btn" style={{ padding: '4px', color: 'var(--accent-red)' }} title="Удалить"><Trash2 size={14} /></button>
                     </div>
                     
                     <h5 style={{ margin: '0 0 12px', color: 'var(--primary)', fontSize: '1rem' }}>
