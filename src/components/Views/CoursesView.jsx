@@ -112,10 +112,7 @@ export default function CoursesView() {
               {expandedCourse === course.id && (
                 <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }} onClick={e => e.stopPropagation()}>
                   
-                  <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px' }}>
-                    <BookOpen size={32} style={{ opacity: 0.5, marginBottom: '10px' }} />
-                    <p>Р¤СѓРЅРєС†РёРё РґРЅРµРІРЅРёРєР° Рё РїРѕСЃРµС‰Р°РµРјРѕСЃС‚Рё Р±СѓРґСѓС‚ Р°РєС‚РёРІРёСЂРѕРІР°РЅС‹ РїРѕСЃР»Рµ РґРѕР±Р°РІР»РµРЅРёСЏ РіСЂСѓРїРї.</p>
-                  </div>
+                  <CourseDetails courseId={course.id} />
 
                 </div>
               )}
@@ -123,6 +120,98 @@ export default function CoursesView() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function CourseDetails({ courseId }) {
+  const [groupName, setGroupName] = useState('');
+  const [diaryText, setDiaryText] = useState('');
+  const groups = useLiveQuery(() => db.groups.where({ courseId }).toArray(), [courseId]) || [];
+  const diaries = useLiveQuery(() => db.diaryEntries.where({ courseId }).reverse().toArray(), [courseId]) || [];
+
+  const handleAddGroup = async (e) => {
+    e.preventDefault();
+    if (groupName.trim()) {
+      await db.groups.add({ courseId, name: groupName, studentCount: 0, status: 'active' });
+      setGroupName('');
+    }
+  };
+
+  const handleAddDiary = async (e) => {
+    e.preventDefault();
+    if (diaryText.trim()) {
+      await db.diaryEntries.add({ courseId, date: new Date().toISOString(), content: diaryText, tags: [] });
+      setDiaryText('');
+    }
+  };
+
+  const handleDeleteGroup = async (id) => {
+    await db.groups.delete(id);
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      {/* Groups / Projects Section */}
+      <div className="glass-panel" style={{ background: 'rgba(255,255,255,0.02)' }}>
+        <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', marginBottom: '16px', marginTop: 0 }}>
+          <Users size={18} /> Группы и Проекты
+        </h4>
+        
+        <form onSubmit={handleAddGroup} style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+          <input 
+            type="text" className="input-field" placeholder="Название группы (напр. Группа 3)" 
+            value={groupName} onChange={e => setGroupName(e.target.value)} required style={{ flex: 1 }}
+          />
+          <button type="submit" className="btn btn-primary"><Plus size={16} /></button>
+        </form>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {groups.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Групп пока нет.</div>
+          ) : (
+            groups.map(g => (
+              <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px' }}>
+                <div>
+                  <strong style={{ color: 'var(--text-main)', display: 'block' }}>{g.name}</strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Проекты/Посещаемость: 0/0</span>
+                </div>
+                <button className="btn" onClick={() => handleDeleteGroup(g.id)} style={{ color: 'var(--accent-red)', padding: '4px' }}><Trash2 size={16} /></button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Diary / Notes Section */}
+      <div className="glass-panel" style={{ background: 'rgba(255,255,255,0.02)' }}>
+        <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', marginBottom: '16px', marginTop: 0 }}>
+          <BookOpen size={18} /> Дневник смены
+        </h4>
+        
+        <form onSubmit={handleAddDiary} style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexDirection: 'column' }}>
+          <textarea 
+            className="input-field" placeholder="Что сегодня прошли? Как успехи?" 
+            value={diaryText} onChange={e => setDiaryText(e.target.value)} required rows={2}
+          />
+          <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end' }}>Сохранить запись</button>
+        </form>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+          {diaries.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Дневник пуст.</div>
+          ) : (
+            diaries.map(d => (
+              <div key={d.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
+                  {new Date(d.date).toLocaleString('ru-RU')}
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>{d.content}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
