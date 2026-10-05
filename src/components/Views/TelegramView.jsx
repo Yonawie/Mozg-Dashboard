@@ -41,13 +41,26 @@ export default function TelegramView() {
   async function loadSettings() {
     const token = await getSetting('telegramBotToken', '');
     setBotToken(token);
-    if (token) setBotStatus('online');
+    if (token) {
+      setBotStatus('online');
+      import('../../services/telegramBot').then(m => m.startTelegramBot(token));
+    }
   }
 
   async function handleSave() {
     setSaving(true);
     await setSetting('telegramBotToken', botToken);
-    setBotStatus(botToken ? 'online' : 'offline');
+    
+    if (botToken) {
+      setBotStatus('online');
+      const { startTelegramBot } = await import('../../services/telegramBot');
+      startTelegramBot(botToken);
+    } else {
+      setBotStatus('offline');
+      const { stopTelegramBot } = await import('../../services/telegramBot');
+      stopTelegramBot();
+    }
+    
     setTimeout(() => setSaving(false), 800);
   }
 

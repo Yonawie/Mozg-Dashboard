@@ -36,6 +36,15 @@ export default function App() {
     if (typeof seedInitialData === 'function') {
       seedInitialData();
     }
+    
+    // Auto-start telegram bot if token is saved
+    import('./services/api').then(({ getSetting }) => {
+      getSetting('telegramBotToken', '').then(token => {
+        if (token) {
+          import('./services/telegramBot').then(m => m.startTelegramBot(token));
+        }
+      });
+    });
   }, []);
 
   const ActiveComponent = VIEWS[activeView] || DashboardView;

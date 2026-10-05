@@ -17,6 +17,7 @@
     "dexie-react-hooks": "^4.4.0",
     "express": "^5.2.1",
     "lucide-react": "^1.27.0",
+    "node-telegram-bot-api": "^2.1.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
