@@ -227,20 +227,49 @@ function CourseDetails({ courseId }) {
 }
 
 function GroupEditor({ group, isExpanded, onToggle, onDelete }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    projectName: group.projectName || '',
-    students: group.students || '',
-    notes: group.notes || ''
-  });
+  const [projects, setProjects] = useState(group.projects || []);
 
-  const handleSave = async (e) => {
-    e.stopPropagation();
-    await db.groups.update(group.id, formData);
-    setIsEditing(false);
+  const handleSaveProjects = async (newProjects) => {
+    setProjects(newProjects);
+    await db.groups.update(group.id, { projects: newProjects });
   };
 
-  const studentList = group.students ? group.students.split('\n').filter(s => s.trim()) : [];
+  const handleAddProject = (e) => {
+    e.stopPropagation();
+    const newProjects = [...projects, { id: Date.now(), name: '', students: '', notes: '', isEditing: true }];
+    handleSaveProjects(newProjects);
+    if (!isExpanded) onToggle();
+  };
+
+  const handleUpdateProject = (id, field, value) => {
+    const newProjects = projects.map(p => p.id === id ? { ...p, [field]: value } : p);
+    setProjects(newProjects);
+  };
+
+  const handleToggleEdit = (e, id, save = false) => {
+    e.stopPropagation();
+    const newProjects = projects.map(p => {
+      if (p.id === id) {
+        if (save) {
+          // Trigger save to DB
+          db.groups.update(group.id, { projects: projects.map(proj => proj.id === id ? { ...proj, isEditing: false } : proj) });
+        }
+        return { ...p, isEditing: !p.isEditing };
+      }
+      return p;
+    });
+    setProjects(newProjects);
+  };
+
+  const handleDeleteProject = (e, id) => {
+    e.stopPropagation();
+    if (window.confirm('Удалить этот проект?')) {
+      const newProjects = projects.filter(p => p.id !== id);
+      handleSaveProjects(newProjects);
+    }
+  };
+
+  const totalStudents = projects.reduce((acc, p) => acc + (p.students ? p.students.split('\n').filter(s => s.trim()).length : 0), 0);
 
   return (
     <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -252,10 +281,13 @@ function GroupEditor({ group, isExpanded, onToggle, onDelete }) {
         <div>
           <strong style={{ color: 'var(--text-main)', display: 'block', fontSize: '1.05rem' }}>{group.name}</strong>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {group.projectName ? `Проект: ${group.projectName}` : 'Проект не выбран'} • Учеников: {studentList.length}
+            Проектов: {projects.length} • Всего учеников: {totalStudents}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button className="btn btn-secondary" onClick={handleAddProject} style={{ padding: '4px 10px', fontSize: '0.8rem' }}>
+            <Plus size={14} /> Добавить проект
+          </button>
           <button className="btn" onClick={onDelete} style={{ color: 'var(--accent-red)', padding: '4px' }} title="Удалить группу">
             <Trash2 size={16} />
           </button>
@@ -263,78 +295,74 @@ function GroupEditor({ group, isExpanded, onToggle, onDelete }) {
         </div>
       </div>
 
-      {/* Expanded Content */}
+      {/* Expanded Content - List of Projects */}
       {isExpanded && (
-        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-          {!isEditing ? (
-            <div style={{ position: 'relative' }}>
-              <button 
-                onClick={() => setIsEditing(true)} 
-                className="btn btn-secondary" 
-                style={{ position: 'absolute', top: 0, right: 0, padding: '6px 12px', fontSize: '0.8rem', display: 'flex', gap: '6px' }}
-              >
-                <Edit2 size={14} /> Изменить
-              </button>
-              
-              <div style={{ marginBottom: '16px', paddingRight: '100px' }}>
-                <h5 style={{ margin: '0 0 6px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Тема / Название проекта:</h5>
-                <div style={{ color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                  {group.projectName || <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>Не указано</span>}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <h5 style={{ margin: '0 0 6px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Список учеников:</h5>
-                {studentList.length > 0 ? (
-                  <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-                    {studentList.map((s, i) => <li key={i}>{s}</li>)}
-                  </ul>
+        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '16px' }} onClick={e => e.stopPropagation()}>
+          {projects.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontStyle: 'italic' }}>Нет проектов в этой группе.</div>
+          ) : (
+            projects.map(p => (
+              <div key={p.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '8px', position: 'relative' }}>
+                {!p.isEditing ? (
+                  <div>
+                    <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px' }}>
+                      <button onClick={(e) => handleToggleEdit(e, p.id)} className="btn" style={{ padding: '4px' }}><Edit2 size={14} /></button>
+                      <button onClick={(e) => handleDeleteProject(e, p.id)} className="btn" style={{ padding: '4px', color: 'var(--accent-red)' }}><Trash2 size={14} /></button>
+                    </div>
+                    
+                    <h5 style={{ margin: '0 0 12px', color: 'var(--primary)', fontSize: '1rem' }}>
+                      {p.name || 'Проект без названия'}
+                    </h5>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <h6 style={{ margin: '0 0 6px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Ученики (пара/команда):</h6>
+                        {p.students ? (
+                          <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                            {p.students.split('\n').filter(s => s.trim()).map((s, i) => <li key={i}>{s}</li>)}
+                          </ul>
+                        ) : (
+                          <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Не указаны</span>
+                        )}
+                      </div>
+                      <div>
+                        <h6 style={{ margin: '0 0 6px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Заметки по проекту:</h6>
+                        <div style={{ color: 'var(--text-main)', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
+                          {p.notes || <span style={{ color: 'var(--text-dim)' }}>Нет заметок</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <span style={{ color: 'var(--text-dim)', fontStyle: 'italic', fontSize: '0.9rem' }}>Список пуст</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <input 
+                      type="text" className="input-field" placeholder="Название проекта (например: Telegram-бот)"
+                      value={p.name} onChange={e => handleUpdateProject(p.id, 'name', e.target.value)}
+                      style={{ fontSize: '1rem', fontWeight: 'bold' }}
+                    />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Список учеников (каждый с новой строки)</label>
+                        <textarea 
+                          className="input-field" placeholder="Иванов Иван&#10;Петров Петр" rows={3}
+                          value={p.students} onChange={e => handleUpdateProject(p.id, 'students', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Заметки (статус, проблемы, идеи)</label>
+                        <textarea 
+                          className="input-field" placeholder="Настроили API, осталось сделать UI..." rows={3}
+                          value={p.notes} onChange={e => handleUpdateProject(p.id, 'notes', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button className="btn btn-primary" onClick={(e) => handleToggleEdit(e, p.id, true)}>Сохранить проект</button>
+                    </div>
+                  </div>
                 )}
               </div>
-
-              <div>
-                <h5 style={{ margin: '0 0 6px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Заметки по группе:</h5>
-                <div style={{ color: 'var(--text-main)', fontSize: '0.9rem', whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '6px' }}>
-                  {group.notes || <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>Заметок нет</span>}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Название проекта</label>
-                <input 
-                  type="text" className="input-field" placeholder="Пример: Чат-бот на Python"
-                  value={formData.projectName} onChange={e => setFormData({...formData, projectName: e.target.value})}
-                />
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Ученики (каждый с новой строки)</label>
-                <textarea 
-                  className="input-field" placeholder="Иванов Иван&#10;Петров Петр" rows={4}
-                  value={formData.students} onChange={e => setFormData({...formData, students: e.target.value})}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Дополнительные заметки</label>
-                <textarea 
-                  className="input-field" placeholder="Особенности группы, идеи и т.д." rows={3}
-                  value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button className="btn btn-secondary" onClick={() => {
-                  setFormData({ projectName: group.projectName || '', students: group.students || '', notes: group.notes || '' });
-                  setIsEditing(false);
-                }}>Отмена</button>
-                <button className="btn btn-primary" onClick={handleSave}>Сохранить</button>
-              </div>
-            </div>
+            ))
           )}
         </div>
       )}
