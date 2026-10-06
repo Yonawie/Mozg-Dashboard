@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Cloud, Calendar, GraduationCap, Users, FolderGit2, Clock, Sparkles, Terminal, Book, Brain, Loader2, Wind, Droplets } from 'lucide-react';
-import { fetchWeather, fetchAINews, launchApp, fetchGitHubRepos } from '../../services/api';
+import { fetchWeather, fetchAINews, launchApp, fetchGitHubRepos, askGemini } from '../../services/api';
 import { db } from '../../db';
 
 export default function DashboardView() {
@@ -10,6 +10,32 @@ export default function DashboardView() {
   const [aiNews, setAiNews] = useState('');
   const [newsLoading, setNewsLoading] = useState(true);
   const [repoCount, setRepoCount] = useState(0);
+
+  const [dailySchedule, setDailySchedule] = useState('');
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+
+  const generateSchedule = async () => {
+    setScheduleLoading(true);
+    try {
+      const memoryObj = await db.settings.get('aiMemory');
+      const aiMemory = memoryObj ? memoryObj.value : '';
+      
+      const res = await fetch('https://docs.google.com/spreadsheets/d/19WvSwCWgagUdhk6IQd-_q8_qU3F0P_8UyBClwhqJ07U/export?format=csv');
+      const csv = await res.text();
+      
+      const prompt = `Here is a teacher's schedule in CSV format:\n${csv.substring(0, 3000)}\n\nHere are her personal preferences/memory facts: ${aiMemory}\n\nPlease generate a very short, clean, and beautiful markdown schedule for her for today (extract her specific groups/times based on her memory). Use emojis. Do not output anything other than the schedule.`;
+      
+      const geminiRes = await askGemini(prompt);
+      if (geminiRes && geminiRes.text) {
+        setDailySchedule(geminiRes.text);
+      } else {
+        setDailySchedule('Не удалось сгенерировать расписание.');
+      }
+    } catch (e) {
+      setDailySchedule('Ошибка загрузки таблицы.');
+    }
+    setScheduleLoading(false);
+  };
 
   const activeCourses = useLiveQuery(() => db.courses?.where({ status: 'active' }).toArray()) || [];
   const groups = useLiveQuery(() => db.groups?.toArray()) || [];
@@ -136,21 +162,29 @@ export default function DashboardView() {
           )}
         </div>
 
-        {/* Quick Actions */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-            ⚡ Быстрые действия
+        {/* AI Schedule */}
+        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar size={18} /> Мой план на сегодня
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button className="btn btn-primary" onClick={() => launchApp('cursor')} style={{ width: '100%', justifyContent: 'center' }}>
-              <Terminal size={18} /> Открыть Cursor IDE
-            </button>
-            <button className="btn btn-purple" onClick={() => launchApp('chrome')} style={{ width: '100%', justifyContent: 'center' }}>
-              🌐 Открыть Chrome
-            </button>
-            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-              <Brain size={18} /> Спросить Мозг
-            </button>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {scheduleLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)' }}>
+                <Loader2 size={24} color="var(--primary)" className="pulsing" style={{ margin: '0 auto 10px' }} />
+                Jarvis изучает расписание...
+              </div>
+            ) : dailySchedule ? (
+              <div style={{ fontSize: '0.9rem', lineHeight: '1.6', color: 'var(--text-main)', whiteSpace: 'pre-wrap', flex: 1, overflowY: 'auto' }}>
+                {dailySchedule}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '10px', color: 'var(--text-dim)' }}>
+                <div style={{ marginBottom: '16px' }}>Jarvis может составить план на основе вашей таблицы и памяти.</div>
+                <button className="btn btn-primary" onClick={generateSchedule} style={{ justifyContent: 'center', width: '100%' }}>
+                  <Brain size={18} /> Сгенерировать
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
