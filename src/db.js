@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('MozgDatabase');
 
-db.version(3).stores({
+db.version(4).stores({
   courses: '++id, title, status, startDate, endDate',
   diaryEntries: '++id, courseId, date, dayNumber',
   attendance: '++id, courseId, groupName, date',
@@ -10,7 +10,8 @@ db.version(3).stores({
   notes: '++id, title, type, tags, courseId, createdAt, updatedAt',
   methods: '++id, title, type, ageGroup, tags',
   showcase: '++id, title, studentName, courseId, type, rating',
-  settings: 'key'
+  settings: 'key',
+  telegramLogs: '++id, timestamp, role'
 });
 
 // Seed only essential settings, NO stub data

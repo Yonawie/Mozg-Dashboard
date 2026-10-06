@@ -105,12 +105,22 @@ export async function askGemini(prompt, systemInstruction = '') {
 
 export async function fetchAINews() {
   try {
-    // Fetch top AI news from TechCrunch via RSS2JSON (avoids Gemini 429 Quota Exceeded)
     const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https://techcrunch.com/category/artificial-intelligence/feed/');
     const data = await res.json();
     const items = data.items.slice(0, 3);
-    const text = items.map(i => `🌐 ${i.title}`).join('\n\n');
-    return { text };
+    const engText = items.map(i => `Title: ${i.title}`).join('\n');
+    
+    const prompt = `Translate these 3 tech news headlines into Russian and format them nicely with a globe emoji at the start of each line. Keep it short:\n\n${engText}`;
+    
+    const geminiRes = await askGemini(prompt);
+    
+    if (geminiRes && !geminiRes.error) {
+      return { text: geminiRes.text };
+    } else {
+      // Fallback
+      const text = items.map(i => `🌐 ${i.title}`).join('\n\n');
+      return { text };
+    }
   } catch (err) {
     return { error: 'Не удалось загрузить новости' };
   }

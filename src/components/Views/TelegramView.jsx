@@ -23,14 +23,7 @@ const AUTO_FEATURES = [
 export default function TelegramView() {
   const [botToken, setBotToken] = useState('');
   const [botStatus, setBotStatus] = useState('offline'); // online | offline | checking
-  const [chatPreview, setChatPreview] = useState([
-    { from: 'user', text: '/расписание' },
-    { from: 'bot', text: '📅 Сегодня, 31 июля:\n\n09:00 — ИИ Лаборатория (Группа 3)\n11:00 — ИИ Лаборатория (Группа 5)\n16:00 — ИИ Лаборатория (Группа 7)' },
-    { from: 'user', text: '/погода' },
-    { from: 'bot', text: '🌤️ Владивосток: +24°C, облачно\nВетер: 5 м/с | Влажность: 72%' },
-    { from: 'user', text: '/заметка Группа 3 отлично справилась с CSS' },
-    { from: 'bot', text: '✅ Заметка сохранена в дневник Смены 8, день 17' },
-  ]);
+  const chatLogs = useLiveQuery(() => db.telegramLogs?.toArray()) || [];
   const [features, setFeatures] = useState(AUTO_FEATURES);
   const [saving, setSaving] = useState(false);
 
@@ -110,33 +103,42 @@ export default function TelegramView() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        {/* Chat Preview */}
+        {/* Real Chat Logs */}
         <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <MessageSquare size={16} /> Превью чата
+            <MessageSquare size={16} /> Журнал сообщений
           </h3>
           <div style={{
             flex: 1, background: '#0c1020', borderRadius: 'var(--radius-sm)',
             padding: '16px', overflowY: 'auto', maxHeight: '400px',
             display: 'flex', flexDirection: 'column', gap: '12px'
           }}>
-            {chatPreview.map((msg, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start'
-              }}>
-                <div style={{
-                  maxWidth: '80%', padding: '10px 14px', borderRadius: '12px',
-                  background: msg.from === 'user'
-                    ? 'linear-gradient(135deg, #2AABEE, #1a8ad4)'
-                    : 'rgba(255,255,255,0.06)',
-                  color: msg.from === 'user' ? 'white' : 'var(--text-main)',
-                  fontSize: '0.85rem', lineHeight: '1.4', whiteSpace: 'pre-line'
-                }}>
-                  {msg.text}
-                </div>
+            {chatLogs.length === 0 ? (
+              <div style={{ color: 'var(--text-dim)', textAlign: 'center', marginTop: '40px' }}>
+                Пока нет сообщений
               </div>
-            ))}
+            ) : (
+              chatLogs.slice(-20).map((msg, i) => (
+                <div key={i} style={{
+                  display: 'flex',
+                  justifyContent: msg.role === 'user' ? 'flex-start' : 'flex-end'
+                }}>
+                  <div style={{
+                    maxWidth: '80%', padding: '10px 14px', borderRadius: '12px',
+                    background: msg.role === 'user'
+                      ? 'rgba(255,255,255,0.06)'
+                      : 'linear-gradient(135deg, #2AABEE, #1a8ad4)',
+                    color: msg.role === 'user' ? 'var(--text-main)' : 'white',
+                    fontSize: '0.85rem', lineHeight: '1.4', whiteSpace: 'pre-line'
+                  }}>
+                    {msg.text}
+                    <div style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '4px', textAlign: 'right' }}>
+                      {new Date(msg.timestamp).toLocaleTimeString('ru-RU')}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

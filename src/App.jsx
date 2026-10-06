@@ -78,6 +78,8 @@ export default function App() {
           <ActiveComponent />
         </div>
       </main>
+      
+      <FloatingAssistant />
     </div>
   );
 }

@@ -42,13 +42,36 @@ export default function CoursesView() {
     }
   };
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredCourses = courses.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const handleStatusChange = async (e, id, newStatus) => {
+    e.stopPropagation();
+    await db.courses.update(id, { status: newStatus });
+  };
+
   return (
     <div style={{ padding: '20px', color: 'var(--text-main)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ color: 'var(--primary)' }}>ИИ Лаборатория: Смены</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Plus size={18} /> Новая смена
-        </button>
+        
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ position: 'relative' }}>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Поиск смены..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: '32px', width: '250px' }}
+            />
+            <span style={{ position: 'absolute', left: '10px', top: '9px', opacity: 0.5 }}>🔍</span>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={18} /> Новая смена
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -79,18 +102,29 @@ export default function CoursesView() {
         </div>
       )}
 
-      {courses.length === 0 && !showForm ? (
+      {filteredCourses.length === 0 && !showForm ? (
         <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-dim)' }}>
-          Список смен пуст. Нажмите «Новая смена», чтобы добавить.
+          Смены не найдены.
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '20px' }}>
-          {courses.map(course => (
+          {filteredCourses.map(course => (
             <div key={course.id} className="glass-panel" style={{ cursor: 'pointer', transition: 'all 0.3s ease' }} onClick={() => setExpandedCourse(expandedCourse === course.id ? null : course.id)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <h3 style={{ fontSize: '20px', margin: 0 }}>{course.title}</h3>
-                  {getStatusBadge(course.status)}
+                  
+                  <select 
+                    value={course.status || 'planning'} 
+                    onChange={(e) => handleStatusChange(e, course.id, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className={`tag tag-${course.status === 'active' ? 'green' : course.status === 'completed' ? 'purple' : 'orange'}`}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '12px' }}
+                  >
+                    <option value="planning" style={{ color: 'black' }}>Планируется</option>
+                    <option value="active" style={{ color: 'black' }}>Активно</option>
+                    <option value="completed" style={{ color: 'black' }}>Завершено</option>
+                  </select>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="btn" onClick={(e) => handleClone(course, e)} style={{ padding: '6px' }} title="Клонировать">

@@ -15,7 +15,12 @@ export default function DashboardView() {
   const groups = useLiveQuery(() => db.groups?.toArray()) || [];
 
   const activeCoursesCount = activeCourses.length;
-  const studentsCount = groups.reduce((acc, g) => acc + (g.studentsCount || 0), 0);
+  // Sum up all students in all projects across all groups
+  const studentsCount = groups.reduce((total, group) => {
+    const groupProjects = group.projects || [];
+    const groupStudents = groupProjects.reduce((pTotal, p) => pTotal + (p.students ? p.students.split('\n').filter(s => s.trim()).length : 0), 0);
+    return total + groupStudents;
+  }, 0);
 
   useEffect(() => {
     // Weather
@@ -24,7 +29,7 @@ export default function DashboardView() {
       .catch(() => {})
       .finally(() => setWeatherLoading(false));
 
-    // AI News
+    // AI News (Will be translated in api.js)
     fetchAINews()
       .then(result => {
         if (result && result.text) setAiNews(result.text);
@@ -48,16 +53,29 @@ export default function DashboardView() {
       const h = now.getHours();
       const m = now.getMinutes();
       const nowMin = h * 60 + m;
-      // Define lesson times
-      const lessons = [9*60, 11*60, 14*60, 16*60];
-      const next = lessons.find(l => l > nowMin);
-      if (next) {
-        const diff = next - nowMin;
-        const hrs = Math.floor(diff / 60);
-        const mins = diff % 60;
-        setCountdown(hrs > 0 ? `${hrs}ч ${mins}мин` : `${mins} мин`);
+      
+      // Lessons: 9:45-11:05, 11:25-12:45, 14:35-16:00, 16:40-18:00
+      const lessons = [
+        { start: 9*60+45, end: 11*60+5 },
+        { start: 11*60+25, end: 12*60+45 },
+        { start: 14*60+35, end: 16*60 },
+        { start: 16*60+40, end: 18*60 }
+      ];
+      
+      const currentLesson = lessons.find(l => nowMin >= l.start && nowMin <= l.end);
+      if (currentLesson) {
+        const diff = currentLesson.end - nowMin;
+        setCountdown(`Идёт урок (ост. ${diff}м)`);
       } else {
-        setCountdown('Уроки окончены');
+        const next = lessons.find(l => l.start > nowMin);
+        if (next) {
+          const diff = next.start - nowMin;
+          const hrs = Math.floor(diff / 60);
+          const mins = diff % 60;
+          setCountdown(hrs > 0 ? `До урока ${hrs}ч ${mins}м` : `До урока ${mins}м`);
+        } else {
+          setCountdown('Уроки окончены');
+        }
       }
     }
     updateCountdown();

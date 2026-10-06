@@ -5,6 +5,7 @@ let lastUpdateId = 0;
 let currentToken = null;
 
 export async function startTelegramBot(token) {
+  db.telegramLogs.add({ timestamp: Date.now(), role: 'system', text: 'Бот запущен' });(token) {
   if (!token) return;
   currentToken = token;
   
@@ -37,6 +38,7 @@ export function stopTelegramBot() {
 }
 
 async function sendMessage(chatId, text) {
+  db.telegramLogs.add({ timestamp: Date.now(), role: 'bot', text });
   try {
     await fetch(`https://api.telegram.org/bot${currentToken}/sendMessage`, {
       method: 'POST',
@@ -50,6 +52,7 @@ async function sendMessage(chatId, text) {
 
 async function handleMessage(msg) {
   const text = msg.text.trim();
+  db.telegramLogs.add({ timestamp: Date.now(), role: 'user', text });
   const chatId = msg.chat.id;
 
   if (text === '/start' || text === '/help') {
