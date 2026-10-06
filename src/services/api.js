@@ -69,37 +69,37 @@ export async function fetchGitHubRepos() {
   }
 }
 
-// ==================== GEMINI ====================
+// ==================== LOCAL AI (LM Studio / Ollama) ====================
 export async function askGemini(prompt, systemInstruction = '') {
-  const apiKey = await getSetting('geminiApiKey', '');
-  if (!apiKey) return { error: 'API ключ Gemini не настроен' };
-  
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-        })
-      }
-    );
-    const data = await res.json();
-    if (data.error) {
-      if (data.error.code === 429) {
-        return { error: 'Превышен лимит запросов к Gemini (Ошибка 429: Quota Exceeded). Проверьте ваш биллинг.' };
-      }
-      return { error: data.error.message };
+    const messages = [];
+    if (systemInstruction) {
+      messages.push({ role: 'system', content: systemInstruction });
     }
+    messages.push({ role: 'user', content: prompt });
+
+    const res = await fetch('http://127.0.0.1:1234/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'local-model', // LM studio uses whatever is loaded
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 2048
+      })
+    });
+    
+    if (!res.ok) {
+      return { error: `Сервер LM Studio вернул ошибку: ${res.status}. Убедитесь, что Local Server запущен.` };
+    }
+    
+    const data = await res.json();
     return {
-      text: data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет ответа',
+      text: data.choices?.[0]?.message?.content || 'Нет ответа',
       error: null
     };
   } catch (err) {
-    return { error: err.message };
+    return { error: 'Не удалось подключиться к LM Studio. Проверьте, что Local Server запущен на порту 1234.' };
   }
 }
 
