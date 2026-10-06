@@ -74,7 +74,7 @@ export default function FloatingAssistant() {
       const fullPrompt = `${chatHistory}\nDasha: ${userText}`;
 
       const response = await askGemini(fullPrompt, systemPrompt);
-      let replyText = response.text || 'Ошибка API';
+      let replyText = response.error ? `⚠️ Ошибка: ${response.error}` : (response.text || 'Ошибка API');
 
       const jsonMatch = replyText.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch) {
