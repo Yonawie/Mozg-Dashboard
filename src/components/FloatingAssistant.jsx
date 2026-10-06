@@ -30,9 +30,26 @@ export default function FloatingAssistant() {
     setIsLoading(true);
 
     try {
+      const memoryObj = await db.settings.get('aiMemory');
+      const aiMemory = memoryObj ? memoryObj.value : 'Пока нет никаких сохраненных фактов.';
+      
       const sheetUrl = 'https://docs.google.com/spreadsheets/d/19WvSwCWgagUdhk6IQd-_q8_qU3F0P_8UyBClwhqJ07U/export?format=csv';
       const systemPrompt = `You are Jarvis, a helpful AI assistant built into a dashboard for Dasha, an AI teacher. 
       You can execute actions by outputting JSON. 
+      
+      Here are the facts you currently remember about the user and their schedule:
+      <MEMORY>
+      ${aiMemory}
+      </MEMORY>
+      
+      If the user asks you to remember a new fact (e.g. "my color is red") or forget a fact, you MUST output EXACTLY:
+      \`\`\`json
+      {
+        "action": "UPDATE_MEMORY",
+        "newMemory": "<a comprehensively rewritten memory text containing all valid old facts plus the new ones, in Russian>"
+      }
+      \`\`\`
+      
       If she asks to add a course ("добавь смену"), output EXACTLY:
       \`\`\`json
       {
@@ -42,15 +59,21 @@ export default function FloatingAssistant() {
         "endDate": "YYYY-MM-DD"
       }
       \`\`\`
+      
       If she asks anything about her schedule, timetable, or google sheet, output EXACTLY:
       \`\`\`json
       {
         "action": "READ_SHEET"
       }
       \`\`\`
-      Otherwise, just answer normally in Russian.`;
+      
+      Otherwise, just answer normally in Russian. Always base your answers on your <MEMORY>.`;
 
-      const response = await askGemini(userText, systemPrompt);
+      // Pass previous 4 messages for short-term memory
+      const chatHistory = messages.slice(-4).map(m => `${m.role === 'ai' ? 'Jarvis' : 'Dasha'}: ${m.text}`).join('\n');
+      const fullPrompt = `${chatHistory}\nDasha: ${userText}`;
+
+      const response = await askGemini(fullPrompt, systemPrompt);
       let replyText = response.text || 'Ошибка API';
 
       const jsonMatch = replyText.match(/```json\n([\s\S]*?)\n```/);
@@ -67,33 +90,18 @@ export default function FloatingAssistant() {
               createdAt: new Date()
             });
             replyText = `✅ Я добавил смену "${actionData.title}" в базу данных!`;
+          } else if (actionData.action === 'UPDATE_MEMORY') {
+            await db.settings.put({ key: 'aiMemory', value: actionData.newMemory });
+            replyText = `🧠 Я обновил свою память! Теперь я запомнил это.\n\n*(Текущая память: ${actionData.newMemory})*`;
           } else if (actionData.action === 'READ_SHEET') {
-            // Fetch CSV and ask again
             setMessages(prev => [...prev, { role: 'ai', text: 'Читаю гугл-таблицу с вашим расписанием...' }]);
             const res = await fetch(sheetUrl);
             const csv = await res.text();
             
-            // Re-prompt gemini with the CSV data
-            const secondPrompt = `Here is the Google Sheet CSV data:\n${csv.substring(0, 3000)}\n\nUser's original request: ${userText}\n\nAnswer the user's request based on this CSV data. (If she asked to add a course based on this, output the CREATE_COURSE json block). Answer in Russian.`;
+            const secondPrompt = `Here is the Google Sheet CSV data:\n${csv.substring(0, 3000)}\n\nUser's original request: ${userText}\n\nAnswer the user's request based on this CSV data and your <MEMORY>. Answer in Russian.`;
             const secondResponse = await askGemini(secondPrompt, systemPrompt);
             
             replyText = secondResponse.text;
-            
-            const secondJsonMatch = replyText.match(/```json\n([\s\S]*?)\n```/);
-            if (secondJsonMatch) {
-              const secondActionData = JSON.parse(secondJsonMatch[1]);
-              if (secondActionData.action === 'CREATE_COURSE') {
-                await db.courses.add({
-                  title: secondActionData.title || 'Новая смена',
-                  startDate: secondActionData.startDate || new Date().toISOString().split('T')[0],
-                  endDate: secondActionData.endDate || new Date().toISOString().split('T')[0],
-                  description: 'Создано ИИ ассистентом из расписания',
-                  status: 'planning',
-                  createdAt: new Date()
-                });
-                replyText = `✅ Я изучил таблицу и автоматически добавил смену "${secondActionData.title}" в базу данных!`;
-              }
-            }
           }
         } catch (e) {
           console.error('Failed to parse AI action', e);
