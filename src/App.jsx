@@ -11,6 +11,7 @@ import TelegramView from './components/Views/TelegramView';
 import MethodsView from './components/Views/MethodsView';
 import ShowcaseView from './components/Views/ShowcaseView';
 import SettingsView from './components/Views/SettingsView';
+import FloatingAssistant from './components/FloatingAssistant';
 import { seedInitialData } from './db';
 import { useEffect } from 'react';
 import './App.css';
