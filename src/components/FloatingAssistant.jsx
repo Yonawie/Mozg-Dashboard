@@ -17,35 +17,42 @@ export default function FloatingAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen, isExpanded]);
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const handleSend = async (e, textOverride = null) => {
+    if (e) e.preventDefault();
+    const userText = textOverride || input.trim();
+    if (!userText) return;
 
-    const userText = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userText }]);
+    if (!textOverride) {
+      setInput('');
+      setMessages(prev => [...prev, { role: 'user', text: userText }]);
+    }
+    
     setIsLoading(true);
 
     try {
-      // Very basic "Tool Use" logic baked into prompt
+      const sheetUrl = 'https://docs.google.com/spreadsheets/d/19WvSwCWgagUdhk6IQd-_q8_qU3F0P_8UyBClwhqJ07U/export?format=csv';
       const systemPrompt = `You are Jarvis, a helpful AI assistant built into a dashboard for Dasha, an AI teacher. 
-      You can execute actions on the dashboard by outputting JSON. 
-      If she asks to "add a course" or "добавь смену", reply EXACTLY with a JSON block like:
+      You can execute actions by outputting JSON. 
+      If she asks to add a course ("добавь смену"), output EXACTLY:
       \`\`\`json
       {
         "action": "CREATE_COURSE",
-        "title": "Название смены",
-        "startDate": "2026-10-01",
-        "endDate": "2026-10-21"
+        "title": "Название",
+        "startDate": "YYYY-MM-DD",
+        "endDate": "YYYY-MM-DD"
       }
       \`\`\`
-      Otherwise, just answer normally in Russian. Do not invent Google Sheets parsing yet, just create dummy dates if she asks.`;
+      If she asks anything about her schedule, timetable, or google sheet, output EXACTLY:
+      \`\`\`json
+      {
+        "action": "READ_SHEET"
+      }
+      \`\`\`
+      Otherwise, just answer normally in Russian.`;
 
       const response = await askGemini(userText, systemPrompt);
-      
       let replyText = response.text || 'Ошибка API';
 
-      // Check for JSON action
       const jsonMatch = replyText.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch) {
         try {
@@ -55,11 +62,38 @@ export default function FloatingAssistant() {
               title: actionData.title || 'Новая смена',
               startDate: actionData.startDate || new Date().toISOString().split('T')[0],
               endDate: actionData.endDate || new Date().toISOString().split('T')[0],
-              description: 'Создано ИИ ассистентом',
+              description: 'Создано ИИ ассистентом из расписания',
               status: 'planning',
               createdAt: new Date()
             });
-            replyText = `✅ Я автоматически добавил новую смену "${actionData.title}" в базу данных! Можете проверить на вкладке "Курсы".`;
+            replyText = `✅ Я добавил смену "${actionData.title}" в базу данных!`;
+          } else if (actionData.action === 'READ_SHEET') {
+            // Fetch CSV and ask again
+            setMessages(prev => [...prev, { role: 'ai', text: 'Читаю гугл-таблицу с вашим расписанием...' }]);
+            const res = await fetch(sheetUrl);
+            const csv = await res.text();
+            
+            // Re-prompt gemini with the CSV data
+            const secondPrompt = `Here is the Google Sheet CSV data:\n${csv.substring(0, 3000)}\n\nUser's original request: ${userText}\n\nAnswer the user's request based on this CSV data. (If she asked to add a course based on this, output the CREATE_COURSE json block). Answer in Russian.`;
+            const secondResponse = await askGemini(secondPrompt, systemPrompt);
+            
+            replyText = secondResponse.text;
+            
+            const secondJsonMatch = replyText.match(/```json\n([\s\S]*?)\n```/);
+            if (secondJsonMatch) {
+              const secondActionData = JSON.parse(secondJsonMatch[1]);
+              if (secondActionData.action === 'CREATE_COURSE') {
+                await db.courses.add({
+                  title: secondActionData.title || 'Новая смена',
+                  startDate: secondActionData.startDate || new Date().toISOString().split('T')[0],
+                  endDate: secondActionData.endDate || new Date().toISOString().split('T')[0],
+                  description: 'Создано ИИ ассистентом из расписания',
+                  status: 'planning',
+                  createdAt: new Date()
+                });
+                replyText = `✅ Я изучил таблицу и автоматически добавил смену "${secondActionData.title}" в базу данных!`;
+              }
+            }
           }
         } catch (e) {
           console.error('Failed to parse AI action', e);
