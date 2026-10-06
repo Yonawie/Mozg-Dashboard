@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { BookOpen, Lightbulb, Package, Bug, Search, Plus, Trash2, Copy, Save } from 'lucide-react';
+import { BookOpen, Lightbulb, Package, Bug, Search, Plus, Trash2, Copy, Save, FileText, Upload } from 'lucide-react';
 
 const TABS = [
   { id: 'prompts', label: 'Промпты', icon: Lightbulb },
   { id: 'plans', label: 'Планы уроков', icon: BookOpen },
   { id: 'starters', label: 'Шаблоны', icon: Package },
   { id: 'errors', label: 'База ошибок', icon: Bug },
+  { id: 'files', label: 'Файлы (AI Мозг)', icon: FileText },
 ];
 
 export default function MethodsView() {
@@ -17,9 +18,46 @@ export default function MethodsView() {
   const [copiedIndex, setCopiedIndex] = useState(null);
 
   const [formData, setFormData] = useState({ title: '', content: '', category: '', type: 'prompts', tags: '' });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // db.methods: ++id, title, type, content, category, tags
   const methods = useLiveQuery(() => db.methods?.toArray()) || [];
+
+  const handleFileUpload = async (e) => {
+    e.preventDefault();
+    if (!selectedFile) return;
+    
+    setIsUploading(true);
+    const form = new FormData();
+    form.append('file', selectedFile);
+    
+    try {
+      const res = await fetch('http://localhost:3777/api/upload', {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        if (db.methods) {
+          await db.methods.add({
+            title: data.originalName,
+            content: 'Этот файл загружен в папку Knowledge_Base и доступен ИИ Khoj для поиска.',
+            category: 'Документ PDF/Word',
+            type: 'files',
+            tags: ['AI-База'],
+            filePath: data.path
+          });
+        }
+        setShowForm(false);
+        setSelectedFile(null);
+      }
+    } catch (err) {
+      console.error('Upload failed', err);
+    }
+    setIsUploading(false);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -96,29 +134,50 @@ export default function MethodsView() {
 
       {showForm && (
         <div className="glass-panel" style={{ padding: '20px' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: 'var(--text-main)' }}>Добавить запись ({TABS.find(t => t.id === activeTab)?.label})</h3>
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <input 
-              required className="input-field" placeholder="Заголовок..." 
-              value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} 
-            />
-            <input 
-              className="input-field" placeholder="Категория (например: Игры, Ошибки CSS)..." 
-              value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} 
-            />
-            <textarea 
-              required className="input-field" placeholder="Содержание (промпт, план, решение)..." rows="4" 
-              value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} 
-            />
-            <input 
-              className="input-field" placeholder="Теги (через запятую)..." 
-              value={formData.tags} onChange={e => setFormData({ ...formData, tags: e.target.value })} 
-            />
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary"><Save size={16} /> Сохранить</button>
-            </div>
-          </form>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: 'var(--text-main)' }}>Добавить ({TABS.find(t => t.id === activeTab)?.label})</h3>
+          
+          {activeTab === 'files' ? (
+            <form onSubmit={handleFileUpload} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ padding: '30px', border: '2px dashed var(--border-color)', borderRadius: '8px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                <FileText size={48} style={{ opacity: 0.5, marginBottom: '16px' }} />
+                <div style={{ marginBottom: '16px' }}>Выберите PDF, Word или текстовый файл для базы знаний</div>
+                <input 
+                  type="file" 
+                  onChange={e => setSelectedFile(e.target.files[0])}
+                  style={{ color: 'var(--text-main)' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Отмена</button>
+                <button type="submit" className="btn btn-primary" disabled={!selectedFile || isUploading}>
+                  {isUploading ? 'Загрузка...' : <><Upload size={16} /> Загрузить в Мозг</>}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <input 
+                required className="input-field" placeholder="Заголовок..." 
+                value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} 
+              />
+              <input 
+                className="input-field" placeholder="Категория (например: Игры, Ошибки CSS)..." 
+                value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} 
+              />
+              <textarea 
+                required className="input-field" placeholder="Содержание (промпт, план, решение)..." rows="4" 
+                value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} 
+              />
+              <input 
+                className="input-field" placeholder="Теги (через запятую)..." 
+                value={formData.tags} onChange={e => setFormData({ ...formData, tags: e.target.value })} 
+              />
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Отмена</button>
+                <button type="submit" className="btn btn-primary"><Save size={16} /> Сохранить</button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 
@@ -153,6 +212,11 @@ export default function MethodsView() {
                   {copiedIndex === item.id ? '✅ Скопировано' : <Copy size={14} />}
                 </button>
               </div>
+              {item.type === 'files' && (
+                <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--accent-green)' }}>
+                  ✅ Доступно для Khoj AI (C:\Mozg\Knowledge_Base)
+                </div>
+              )}
             </div>
           ))}
         </div>
