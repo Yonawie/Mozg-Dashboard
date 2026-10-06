@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../db';
 import { Bot, Send, Bell, Clock, MessageSquare, Shield, Wifi, WifiOff, Settings as SettingsIcon, FileText } from 'lucide-react';
 import { getSetting, setSetting } from '../../services/api';
 
