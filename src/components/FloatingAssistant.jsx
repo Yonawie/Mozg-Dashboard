@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Maximize2, Minimize2 } from 'lucide-react';
-import { askGemini } from '../../services/api';
-import { db } from '../../db';
+import { askGemini } from '../services/api';
+import { db } from '../db';
 
 export default function FloatingAssistant() {
   const [isOpen, setIsOpen] = useState(false);
